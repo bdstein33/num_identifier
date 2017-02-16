@@ -102,7 +102,8 @@ def logistic_cost(X, y, theta, lam = 0):
   m = y.shape[0]
   square = np.vectorize(lambda x: x*x)
   sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
-
+  print('A', X.shape)
+  print('B', theta.shape)
   h = sigmoid((X * theta))
 
   cost = np.sum(np.multiply(-y, (np.log(h))) - np.multiply((1 - y), np.log(1 - h))) / m
@@ -119,8 +120,9 @@ def logistic_cost(X, y, theta, lam = 0):
 def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
   # m represents the number of training examples
   m = y.shape[0]
-  J_history = []
   sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
+  print('AA', X.shape)
+  print('BB', theta.shape)
   for iter in range(0, num_iters):
     # Run gradient descent to optimize thetas for regression
     h = sigmoid(X * theta)
@@ -144,28 +146,22 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
 @cross_origin()
 def run_regression():
   data = get_training_data()
+
+  # Split data into training set and cross validation set
   training_data_size = len(data['training_data']) * 0.8
-  print(training_data_size)
+  training_data_X = data['training_data'][0: training_data_size]
+  training_data_y = data['y'][0: training_data_size]
+  cross_validation_data_X = data['training_data'][training_data_size: len(data['training_data'])]
+  cross_validation_y = data['y'][training_data_size: len(data['training_data'])]
 
-  training_data = data['training_data'][0: training_data_size]
-  cross_validation_data = data['training_data'][training_data_size, len(data['training_data'])]
-# t = [0, 1, 2, 3, 4, 5]
-
-# print(t[0:2])
-# print(t[2:len(t)])
-
-  theta = []
-  for x in range (0, data['training_data'].shape[1]):
-  # for x in range (0, training_data.shape[1]):
-
-    theta.append([0])
+  theta = [0] * training_data_X.shape[1]
   theta = np.mat(theta)
   yConvertFunc = np.vectorize(lambda y, num: 1 if y == num else 0)
 
   for num in range(0, 10):
-    # gradient_descent(num, data['training_data'], yConvertFunc(data['y'], num), theta, 0.01)
-    gradient_descent(num, training_data, yConvertFunc(y, num), theta, 0.01, 400)
+    gradient_descent(num, data['training_data'], yConvertFunc(data['y'], num), theta, 0.01)
 
+  # check_results(cross_validation_data_X)
   return 'success'
 
 
@@ -173,7 +169,7 @@ sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
 
 @app.route('/check_results', methods=['GET'])
 @cross_origin()
-def check_results(cross_set):
+def check_results(cross_validation_set):
   data = get_training_data()
   X = data['training_data']
   y = data['y'].A1
