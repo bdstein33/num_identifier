@@ -81,6 +81,19 @@ def new_features(img_array):
     row_count += 1 if row_sums[i] > 0 else 0
     col_count += 1 if col_sums[i] > 0 else 0
 
+
+
+  left_bound = 0
+  right_bound = 0
+  top_bound = 0
+  bottom_bound = 0
+
+  top_left_count = 0
+  top_right_count = 0
+  bottom_left_count = 0
+  bottom_right_count = 0
+
+
   return [total_pixels, row_count, col_count] + row_sums + col_sums
 
 
@@ -102,8 +115,7 @@ def logistic_cost(X, y, theta, lam = 0):
   m = y.shape[0]
   square = np.vectorize(lambda x: x*x)
   sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
-  print('A', X.shape)
-  print('B', theta.shape)
+
   h = sigmoid((X * theta))
 
   cost = np.sum(np.multiply(-y, (np.log(h))) - np.multiply((1 - y), np.log(1 - h))) / m
@@ -121,8 +133,6 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
   # m represents the number of training examples
   m = y.shape[0]
   sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
-  print('AA', X.shape)
-  print('BB', theta.shape)
   for iter in range(0, num_iters):
     # Run gradient descent to optimize thetas for regression
     h = sigmoid(X * theta)
@@ -132,10 +142,6 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
   for feature in range(0, theta.shape[0]):
     db.engine.execute(
       'REPLACE INTO Number_Thetas (feature, coefficient, value) VALUES (%(feature)d, %(coefficient)f, %(value)d)' % {'feature': feature, 'coefficient': theta[feature], 'value': num})
-
-
-
-
 
 # Sigmoid returns a value between 0 and 1
 # When z = 0, should return 0.5
@@ -149,19 +155,19 @@ def run_regression():
 
   # Split data into training set and cross validation set
   training_data_size = len(data['training_data']) * 0.8
-  training_data_X = data['training_data'][0: training_data_size]
-  training_data_y = data['y'][0: training_data_size]
-  cross_validation_data_X = data['training_data'][training_data_size: len(data['training_data'])]
+  training_X = data['training_data'][0: training_data_size]
+  training_y = data['y'][0: training_data_size]
+  cross_validation_X = data['training_data'][training_data_size: len(data['training_data'])]
   cross_validation_y = data['y'][training_data_size: len(data['training_data'])]
 
-  theta = [0] * training_data_X.shape[1]
+  theta = [[0]] * training_X.shape[1]
   theta = np.mat(theta)
   yConvertFunc = np.vectorize(lambda y, num: 1 if y == num else 0)
 
   for num in range(0, 10):
-    gradient_descent(num, data['training_data'], yConvertFunc(data['y'], num), theta, 0.01)
+    gradient_descent(num, training_X, yConvertFunc(training_y, num), theta, 0.01, 1000)
 
-  # check_results(cross_validation_data_X)
+  check_results(cross_validation_X, cross_validation_y)
   return 'success'
 
 
@@ -169,32 +175,29 @@ sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
 
 @app.route('/check_results', methods=['GET'])
 @cross_origin()
-def check_results(cross_validation_set):
-  data = get_training_data()
-  X = data['training_data']
-  y = data['y'].A1
+def check_results(cv_X, cv_y):
+  # data = get_training_data()
   theta = get_thetas()
 
   output = []
-  for iter in range(0, len(X)):
-
-    X_data = np.mat(X[iter])
+  for cv_data_row in range(0, cv_X.shape[0]):
+    X_data = cv_X[cv_data_row]
     cur_results =  []
     for i in range(0, len(theta)):
-      cur_results.append(sigmoid(X_data * theta[i]))
-    output.append([y[iter], cur_results])
+      cur_results.append(sigmoid(X_data * theta[i]).A1[0])
 
-  print(output)
+    output.append([cv_y[cv_data_row].A1[0], cur_results])
+
   correct = 0
   total = 0
   for i in range(0, len(output)):
     total += 1
-    if (output[i][0] == output[i][1]):
+    if (output[i][0] == output[i][1].index(max(output[i][1]))):
       correct += 1
 
   print('correct', correct)
   print('total', total)
-  print('accurracy %f' % correct/total)
+  print('accurracy %f' % (correct/float(total)))
   return 'GET REQUEST'
 
 
