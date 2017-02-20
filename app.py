@@ -11,7 +11,6 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost:3306/tripshare'
 db = SQLAlchemy(app)
 
-
 CORS(app, resources={r'/api/*': {'origins': '*'}})
 
 @app.route('/num_identifier', methods=['GET', 'POST'])
@@ -20,24 +19,17 @@ def num_identifier():
   if request.method == 'POST':
     data = request.get_json()
     img_data = [1] + json.loads(data['image'])
-    y = data['value']
+    # y = data['value']
 
-    db.engine.execute('INSERT INTO Number_Training_Data (image, value) VALUES ("%(img_data)s", %(value)d)' % {'img_data': data['image'], 'value': data['value']})
-
+    # db.engine.execute('INSERT INTO Number_Training_Data (image, value) VALUES ("%(img_data)s", %(value)d)' % {'img_data': data['image'], 'value': data['value']})
 
     result = determine_number(img_data)
     print(result)
     print('RESULT', result.index(max(result)))
 
-    return jsonify(result.index(max(result)))
+    return jsonify({'prediction': result.index(max(result))})
   else:
     return 'GET REQUEST'
-
-# def one_vs_all_regression():
-  # Each image is 100x100 pixels, pluts one
-  # features = 100 * 100 + 1
-  # 10 labels 0 to 10
-  # num_labels = 10
 
 #  Returns formatted training data and associated Y values
 def get_training_data():
@@ -77,24 +69,83 @@ def new_features(img_array):
     col_sums[col] += img_array[pixel]
     total_pixels += img_array[pixel]
 
+  total_pixels = total_pixels if total_pixels > 0 else 1
+
   for i in range (0, 19):
     row_count += 1 if row_sums[i] > 0 else 0
     col_count += 1 if col_sums[i] > 0 else 0
 
 
-
-  left_bound = 0
-  right_bound = 0
-  top_bound = 0
-  bottom_bound = 0
+  left_bound = None
+  right_bound = None
+  top_bound = None
+  bottom_bound = None
 
   top_left_count = 0
   top_right_count = 0
   bottom_left_count = 0
   bottom_right_count = 0
 
+  left_count = 0
+  right_count = 0
+  top_count = 0
+  bottom_count = 0
 
-  return [total_pixels, row_count, col_count] + row_sums + col_sums
+  # Get boundaries
+  for i in range(0, 20):
+    if row_sums[i] > 0:
+      if left_bound is None:
+        left_bound = i
+      right_bound = i
+
+    if col_sums[i] > 0:
+      if top_bound is None:
+        top_bound = i
+      bottom_bound = i
+
+  left_bound = left_bound if left_bound else 0
+  right_bound = right_bound if right_bound else 0
+  top_bound = top_bound if top_bound else 0
+  bottom_bound = bottom_bound if bottom_bound else 0
+  horizontal_mid_index = (left_bound + right_bound) / 2
+  vertical_mid_index = (top_bound + bottom_bound) / 2
+
+  for pixel in range(0, len(img_array)):
+    row = pixel / 20
+    col = pixel % 20
+    # print(img_array[pixel], row, col)
+    if row < horizontal_mid_index and col < vertical_mid_index:
+      top_left_count += img_array[pixel]
+    elif row < horizontal_mid_index and col > vertical_mid_index:
+      top_right_count += img_array[pixel]
+    elif row > horizontal_mid_index and col < vertical_mid_index:
+      bottom_left_count += img_array[pixel]
+    elif row > horizontal_mid_index and col > vertical_mid_index:
+      bottom_right_count += img_array[pixel]
+
+    if row < horizontal_mid_index:
+      top_count += img_array[pixel]
+    elif row > horizontal_mid_index:
+      bottom_count += img_array[pixel]
+    if col < vertical_mid_index:
+      left_count += img_array[pixel]
+    elif col > vertical_mid_index:
+      right_count += img_array[pixel]
+
+  pixel_distribution = [
+    top_count / float(total_pixels),
+    bottom_count / float(total_pixels),
+    left_count / float(total_pixels),
+    right_count / float(total_pixels),
+    top_left_count / float(total_pixels),
+    top_right_count / float(total_pixels),
+    bottom_left_count / float(total_pixels),
+    bottom_right_count / float(total_pixels),
+    top_count / float(bottom_count if bottom_count else 1),
+    left_count / float(right_count if right_count else 1)
+  ]
+
+  return [total_pixels, row_count, col_count] + row_sums + col_sums + pixel_distribution
 
 
 def get_thetas():
@@ -198,8 +249,6 @@ def check_results(cv_X, cv_y):
   print('correct', correct)
   print('total', total)
   print('accurracy %f' % (correct/float(total)))
-  return 'GET REQUEST'
-
 
 
 def determine_number(X):
