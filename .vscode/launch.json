@@ -105,7 +105,8 @@
       "request": "launch",
       "stopOnEntry": false,
       "pythonPath": "${config.python.pythonPath}",
-      "program": "${file}",
+      // "program": "${file}",
+      "program": "${workspaceRoot}/venv"
       "cwd": "${workspaceRoot}",
       "env": {
         "FLASK_APP": "${workspaceRoot}/app.py"

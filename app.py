@@ -5,7 +5,7 @@ import json
 from flask_sqlalchemy import SQLAlchemy
 import math
 import numpy as np
-import scipy.io
+import scipy.io as sio
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost:3306/tripshare'
@@ -221,26 +221,54 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
 # def sigmoid(z):
 #   return 1 / (1 + math.exp(-1 * z))
 
+# Returns inputs and outputs for training and cross validation data
+def get_training_and_cv_data(use_3rd_party_training_data = 0):
+  data = get_training_data()
+
+
+  # Use 3rd party data
+  if use_3rd_party_training_data:
+    personal_data_training_size = 0
+    convert_grayscale_to_binary = np.vectorize(lambda y: 1 if y >= 0.5 else 0)
+    # 3rd party data uses Y label of 10 for zero since it plays nicely in Octave
+    # This function simply changes the label to 0 to make it more consistent
+    replace_10_with_0 = np.vectorize(lambda y: 0 if y == 10 else y)
+    data_3rd_party = sio.loadmat('data.mat')
+    training_X = convert_grayscale_to_binary(data_3rd_party['X'])
+    training_y = replace_10_with_0(convert_grayscale_to_binary(data_3rd_party['y']))
+    # If we use third party data for training, we use all of our personal data for cross validation
+
+
+  # Use personal data
+  else:
+    personal_data_training_size = len(data['training_data']) * 0.8
+    training_X = data['training_data'][0: personal_data_training_size]
+    training_y = data['y'][0: personal_data_training_size]
+
+  cross_validation_X = data['training_data'][personal_data_training_size: len(data['training_data'])]
+  cross_validation_y = data['y'][personal_data_training_size: len(data['training_data'])]
+
+  return {
+    'training_X': training_X,
+    'training_y': training_y,
+    'cross_validation_X': cross_validation_X,
+    'cross_validation_y': cross_validation_y
+  }
+
+
 @app.route('/run_regression', methods=['GET'])
 @cross_origin()
 def run_regression():
-  data = get_training_data()
+  data = get_training_and_cv_data(1)
 
-  # Split data into training set and cross validation set
-  training_data_size = len(data['training_data']) * 0.8
-  training_X = data['training_data'][0: training_data_size]
-  training_y = data['y'][0: training_data_size]
-  cross_validation_X = data['training_data'][training_data_size: len(data['training_data'])]
-  cross_validation_y = data['y'][training_data_size: len(data['training_data'])]
-
-  theta = [[0]] * training_X.shape[1]
+  theta = [[0]] * data['training_X'].shape[1]
   theta = np.mat(theta)
-  yConvertFunc = np.vectorize(lambda y, num: 1 if y == num else 0)
+  y_convert_function = np.vectorize(lambda y, num: 1 if y == num else 0)
 
   for num in range(0, 10):
-    gradient_descent(num, training_X, yConvertFunc(training_y, num), theta, 0.01, 1000)
+    gradient_descent(num, data['training_X'], y_convert_function(data['training_y'], num), theta, 0.01, 400)
 
-  check_results(cross_validation_X, cross_validation_y)
+  check_results(data['cross_validation_X'], data['cross_validation_y'])
   return 'success'
 
 
