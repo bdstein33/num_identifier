@@ -18,18 +18,25 @@ CORS(app, resources={r'/api/*': {'origins': '*'}})
 def num_identifier():
   if request.method == 'POST':
     data = request.get_json()
-    img_data = [1] + json.loads(data['image'])
-    # y = data['value']
+    image_data = [1] + json.loads(data['image'])
+    y = data['value']
 
-    # db.engine.execute('INSERT INTO Number_Training_Data (image, value) VALUES ("%(img_data)s", %(value)d)' % {'img_data': data['image'], 'value': data['value']})
+    # add_training_data(image_data, y)
 
-    result = determine_number(img_data)
+    result = determine_number(image_data)
     print(result)
     print('RESULT', result.index(max(result)))
 
     return jsonify({'prediction': result.index(max(result))})
   else:
     return 'GET REQUEST'
+
+def add_training_data(image_data, value):
+  db.engine.execute(
+    'INSERT INTO Number_Training_Data (image, value) \
+     VALUES ("%(image_data)s", %(value)d)'
+    % {'image_data': image_data, 'value': value}
+  )
 
 #  Returns formatted training data and associated Y values
 def get_training_data():
@@ -39,7 +46,6 @@ def get_training_data():
   y = []
   for x in range(0, len(training_data_json)):
     img_data = modify_training_data(json.loads(training_data_json[x]['image']))
-    # img_data = [1] + json.loads(training_data_json[x]['image'])
     training_data.append([1] + json.loads(training_data_json[x]['image']))
     y.append([training_data_json[x]['value']])
 
@@ -48,8 +54,24 @@ def get_training_data():
     'y': np.mat(y)
   }
 
+# Add new features to existing pixel data
 def modify_training_data(array):
   return [1] + new_features(array) # + array
+
+# Generates various calculated features including in an array:
+#   Total pixels: # pixels colored in the image
+#   Row count: # rows that have at least one colored pixel
+#   Column count: # columns that have at least one colored pixel
+#   Row sums (one for each row): # of colored pixels in each row
+#   Column sums (one for each column): # of colored pixels in each column
+#   Top distribution: % pixels in top half of number pixel boundaries
+#   Bottom distribution: % pixels in bottom half of number pixel boundaries
+#   Left distribution: % pixels in left half of number pixel boundaries
+#   Right distribution: % pixels in right half of number pixel boundaries
+#   Top left  distribution: % pixels in top left quarter of number pixel boundaries
+#   Top right distribution: % pixels in top right quarter of number pixel boundaries
+#   Bottom left distribution: % pixels in bottom left quarter of number pixel boundaries
+#   Bottom right distribution: % pixels in bottom right quarter of number pixel boundaries
 
 def new_features(img_array):
   # represent the number density (sum of 1s) in each row/col
@@ -75,23 +97,12 @@ def new_features(img_array):
     row_count += 1 if row_sums[i] > 0 else 0
     col_count += 1 if col_sums[i] > 0 else 0
 
-
   left_bound = None
   right_bound = None
   top_bound = None
   bottom_bound = None
 
-  top_left_count = 0
-  top_right_count = 0
-  bottom_left_count = 0
-  bottom_right_count = 0
-
-  left_count = 0
-  right_count = 0
-  top_count = 0
-  bottom_count = 0
-
-  # Get boundaries
+  # Get boundaries of number image based on colored pixels
   for i in range(0, 20):
     if row_sums[i] > 0:
       if left_bound is None:
@@ -110,10 +121,21 @@ def new_features(img_array):
   horizontal_mid_index = (left_bound + right_bound) / 2
   vertical_mid_index = (top_bound + bottom_bound) / 2
 
+  top_left_count = 0
+  top_right_count = 0
+  bottom_left_count = 0
+  bottom_right_count = 0
+
+  left_count = 0
+  right_count = 0
+  top_count = 0
+  bottom_count = 0
+
+  # Determine pixel distribution based on number image dimesions
   for pixel in range(0, len(img_array)):
     row = pixel / 20
     col = pixel % 20
-    # print(img_array[pixel], row, col)
+
     if row < horizontal_mid_index and col < vertical_mid_index:
       top_left_count += img_array[pixel]
     elif row < horizontal_mid_index and col > vertical_mid_index:
@@ -147,7 +169,7 @@ def new_features(img_array):
 
   return [total_pixels, row_count, col_count] + row_sums + col_sums + pixel_distribution
 
-
+# Return theta values for each Y value
 def get_thetas():
   output = []
 
