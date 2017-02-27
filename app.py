@@ -24,7 +24,12 @@ def num_identifier():
     # add_training_data(image_data, y)
 
     result = determine_number(image_data)
-    print(result)
+    i = 0
+    maxNum = result[result.index(max(result))]
+    while i < 10:
+      print(i, (result[i]/maxNum) * float(100))
+      i += 1
+
     print('RESULT', result.index(max(result)))
 
     return jsonify({'prediction': result.index(max(result))})
@@ -57,6 +62,28 @@ def get_training_data():
 # Add new features to existing pixel data
 def modify_training_data(array):
   return [1] + new_features(array) # + array
+
+def expand_stroke(array):
+  for pixel in array:
+    row = pixel / 20
+    col = pixel % 20
+
+    if (array[pixel] is 1):
+      if (row is not 0):
+        array[pixel - 1] = 2 if array[pixel - 1] is 0 else array[pixel - 1]
+      if (row is not 19):
+        array[pixel + 1] = 2 if array[pixel + 1] is 0 else array[pixel + 1]
+      if (col is not 0):
+        array[pixel - 20] = 2 if array[pixel - 20] is 0 else array[pixel - 20]
+      if (col is not 19):
+        array[pixel + 20] = 2 if array[pixel + 20] is 0 else array[pixel + 20]
+
+  for pixel in array:
+    array[pixel] = 1 if pixel > 0 else 0
+
+  return array
+
+
 
 # Generates various calculated features including in an array:
 #   Total pixels: # pixels colored in the image
@@ -196,7 +223,6 @@ def logistic_cost(X, y, theta, lam = 0):
 
   return cost + regularization_term
 
-
 # X: training example inputs
 # y: training example outputs
 # theta: regression coefficients
@@ -214,7 +240,9 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
 
   for feature in range(0, theta.shape[0]):
     db.engine.execute(
-      'REPLACE INTO Number_Thetas (feature, coefficient, value) VALUES (%(feature)d, %(coefficient)f, %(value)d)' % {'feature': feature, 'coefficient': theta[feature], 'value': num})
+      'REPLACE INTO Number_Thetas (feature, coefficient, value) \
+      VALUES (%(feature)d, %(coefficient)f, %(value)d)' %
+      {'feature': feature, 'coefficient': theta[feature], 'value': num})
 
 # Sigmoid returns a value between 0 and 1
 # When z = 0, should return 0.5
@@ -225,9 +253,9 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
 def get_training_and_cv_data(use_3rd_party_training_data = 0):
   data = get_training_data()
 
-
   # Use 3rd party data
   if use_3rd_party_training_data:
+    # If we use third party data for training, we use all of our personal data for cross validation
     personal_data_training_size = 0
     convert_grayscale_to_binary = np.vectorize(lambda y: 1 if y >= 0.5 else 0)
     # 3rd party data uses Y label of 10 for zero since it plays nicely in Octave
@@ -235,10 +263,7 @@ def get_training_and_cv_data(use_3rd_party_training_data = 0):
     replace_10_with_0 = np.vectorize(lambda y: 0 if y == 10 else y)
     data_3rd_party = sio.loadmat('data.mat')
     training_X = convert_grayscale_to_binary(data_3rd_party['X'])
-    training_y = replace_10_with_0(convert_grayscale_to_binary(data_3rd_party['y']))
-    # If we use third party data for training, we use all of our personal data for cross validation
-
-
+    training_y = replace_10_with_0(data_3rd_party['y'])
   # Use personal data
   else:
     personal_data_training_size = len(data['training_data']) * 0.8
@@ -259,23 +284,20 @@ def get_training_and_cv_data(use_3rd_party_training_data = 0):
 @app.route('/run_regression', methods=['GET'])
 @cross_origin()
 def run_regression():
-  data = get_training_and_cv_data(1)
+  data = get_training_and_cv_data(0)
 
   theta = [[0]] * data['training_X'].shape[1]
   theta = np.mat(theta)
   y_convert_function = np.vectorize(lambda y, num: 1 if y == num else 0)
 
   for num in range(0, 10):
-    gradient_descent(num, data['training_X'], y_convert_function(data['training_y'], num), theta, 0.01, 400)
-
+    gradient_descent(num, data['training_X'], y_convert_function(data['training_y'], num), theta, 0.03, 400)
   check_results(data['cross_validation_X'], data['cross_validation_y'])
   return 'success'
 
 
 sigmoid = np.vectorize(lambda z: 1 / (1 + math.exp(-1 * z)))
 
-@app.route('/check_results', methods=['GET'])
-@cross_origin()
 def check_results(cv_X, cv_y):
   # data = get_training_data()
   theta = get_thetas()
