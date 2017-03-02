@@ -13,7 +13,7 @@ db = SQLAlchemy(app)
 
 CORS(app, resources={r'/api/*': {'origins': '*'}})
 
-@app.route('/num_identifier', methods=['GET', 'POST'])
+@app.route('/num_identifier', methods=['POST'])
 @cross_origin()
 def num_identifier():
   if request.method == 'POST':
@@ -33,8 +33,6 @@ def num_identifier():
     print('RESULT', result.index(max(result)))
 
     return jsonify({'prediction': result.index(max(result))})
-  else:
-    return 'GET REQUEST'
 
 def add_training_data(image_data, value):
   db.engine.execute(
