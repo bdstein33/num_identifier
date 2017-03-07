@@ -5,10 +5,18 @@ import json
 from flask_sqlalchemy import SQLAlchemy
 import math
 import numpy as np
-import scipy.io as sio
+from env_variables import *
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost:3306/tripshare'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://%s:%s@%s:%s/%s' % (
+  MYSQL_USER,
+  MYSQL_PASSWORD,
+  MYSQL_HOST,
+  MYSQL_PORT,
+  MYSQL_DATABSASE
+)
+
 db = SQLAlchemy(app)
 
 CORS(app, resources={r'/api/*': {'origins': '*'}})
@@ -21,7 +29,8 @@ def num_identifier():
     image_data = [1] + json.loads(data['image'])
     y = data['value']
 
-    # add_training_data(image_data, y)
+    if y is not None:
+      add_training_data(image_data, y)
 
     result = determine_number(image_data)
     i = 0

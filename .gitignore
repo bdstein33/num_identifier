@@ -2,3 +2,4 @@ test/
 venv/
 .DS_Store
 data.mat
+env_variables.py
