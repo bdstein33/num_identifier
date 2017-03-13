@@ -1,3 +1,5 @@
+PYTHON_ENV='development'
+
 MYSQL_USER=''
 MYSQL_PASSWORD=''
 MYSQL_HOST=''

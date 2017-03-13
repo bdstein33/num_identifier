@@ -26,17 +26,17 @@ CORS(app, resources={r'/api/*': {'origins': '*'}})
 def num_identifier():
   if request.method == 'POST':
     data = request.get_json()
-    image_data = [1] + json.loads(data['image'])
+    image_data = json.loads(data['image'])
     y = data['value']
 
     if y is not None:
       add_training_data(image_data, y)
 
+    image_data = modify_training_data(image_data)
     result = determine_number(image_data)
-    i = 0
-    maxNum = result[result.index(max(result))]
-    while i < 10:
-      print(i, (result[i]/maxNum) * float(100))
+    std = np.std(result)
+    for i in range(0, 10):
+      print(i, result[i] / std)
       i += 1
 
     print('RESULT', result.index(max(result)))
@@ -58,7 +58,9 @@ def get_training_data():
   y = []
   for x in range(0, len(training_data_json)):
     img_data = modify_training_data(json.loads(training_data_json[x]['image']))
-    training_data.append([1] + json.loads(training_data_json[x]['image']))
+
+    # training_data.append([1] + json.loads(training_data_json[x]['image']))
+    training_data.append(img_data)
     y.append([training_data_json[x]['value']])
 
   return {
@@ -242,6 +244,7 @@ def gradient_descent(num, X, y, theta, alpha = 0.01, num_iters = 400):
   for iter in range(0, num_iters):
     # Run gradient descent to optimize thetas for regression
     h = sigmoid(X * theta)
+
     theta = theta - sum(np.multiply((h-y), X), 0).T * (alpha / m)
     print(num, iter, logistic_cost(X, y, theta))
 
@@ -292,13 +295,12 @@ def get_training_and_cv_data(use_3rd_party_training_data = 0):
 @cross_origin()
 def run_regression():
   data = get_training_and_cv_data(0)
-
   theta = [[0]] * data['training_X'].shape[1]
   theta = np.mat(theta)
   y_convert_function = np.vectorize(lambda y, num: 1 if y == num else 0)
 
   for num in range(0, 10):
-    gradient_descent(num, data['training_X'], y_convert_function(data['training_y'], num), theta, 0.03, 400)
+    gradient_descent(num, data['training_X'], y_convert_function(data['training_y'], num), theta, 0.01, 800)
   check_results(data['cross_validation_X'], data['cross_validation_y'])
   return 'success'
 
@@ -315,7 +317,6 @@ def check_results(cv_X, cv_y):
     cur_results =  []
     for i in range(0, len(theta)):
       cur_results.append(sigmoid(X_data * theta[i]).A1[0])
-
     output.append([cv_y[cv_data_row].A1[0], cur_results])
 
   correct = 0
@@ -346,4 +347,7 @@ def determine_number(X):
 
 
 if __name__ == '__main__':
-  app.run(debug=True)
+  if PYTHON_ENV == 'development':
+    app.run(debug=True)
+  else:
+    app.run(host= '0.0.0.0')
